@@ -151,11 +151,21 @@ body {
     display: block;
     width: 100%;
     height: 100%;
-    cursor: grab;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    -webkit-user-drag: none;
+    -khtml-user-drag: none;
+    -moz-user-drag: none;
+    -o-user-drag: none;
+    /*user-drag: none;*/
+    pointer-events: auto; /* この行を追加 */
 }
 
-#game-canvas:active {
-    cursor: grabbing;
+#game-canvas.dragging {
+    cursor: move !important;
 }
 
 #game-message {
