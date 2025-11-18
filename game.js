@@ -137,11 +137,21 @@ class Minesweeper {
     
     resizeCanvas() {
         const dpr = window.devicePixelRatio || 1;
-        this.canvas.width = window.innerWidth * dpr;
-        this.canvas.height = window.innerHeight * dpr;
-        this.canvas.style.width = window.innerWidth + 'px';
-        this.canvas.style.height = window.innerHeight + 'px';
-        this.ctx.scale(dpr, dpr);
+        
+        // CSSサイズ
+        const displayWidth = window.innerWidth;
+        const displayHeight = window.innerHeight;
+        
+        // Canvas内部解像度（高DPI対応）
+        this.canvas.width = displayWidth * dpr;
+        this.canvas.height = displayHeight * dpr;
+        
+        // CSSでの表示サイズ
+        this.canvas.style.width = displayWidth + 'px';
+        this.canvas.style.height = displayHeight + 'px';
+        
+        // 描画コンテキストをスケール（重要！）
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         
         if (this.state === 'GAME') {
             this.enforceViewLimits();
