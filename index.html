@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minesweeper</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- スタート画面 -->
+        <div id="start-screen" class="screen">
+            <h1>Minesweeper</h1>
+            <button class="menu-button" id="start-game-btn">Start Game</button>
+            <button class="menu-button" id="config-btn">Config</button>
+            <button class="menu-button" id="exit-btn">Exit Game</button>
+        </div>
+
+        <!-- 設定画面 -->
+        <div id="config-screen" class="screen hidden">
+            <h2>Config Minesweeper</h2>
+            <div class="config-content">
+                <div class="preset-row">
+                    <label>Preset:</label>
+                    <button id="preset-btn" class="preset-button">EASY</button>
+                </div>
+                <div class="config-field">
+                    <label>Rows:</label>
+                    <input type="text" id="rows-input" class="config-input" value="9">
+                </div>
+                <div class="config-field">
+                    <label>Cols:</label>
+                    <input type="text" id="cols-input" class="config-input" value="9">
+                </div>
+                <div class="config-field">
+                    <label>Mines:</label>
+                    <input type="text" id="mines-input" class="config-input" value="10">
+                </div>
+                <div class="config-buttons">
+                    <button class="config-button" id="config-ok-btn">OK</button>
+                    <button class="config-button" id="config-cancel-btn">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ゲーム画面 -->
+        <div id="game-screen" class="screen hidden">
+            <canvas id="game-canvas"></canvas>
+            <div id="game-message" class="hidden"></div>
+            <div id="game-over-menu" class="hidden">
+                <button class="game-button" id="restart-btn">Restart Game</button>
+                <button class="game-button" id="new-game-btn">New Game</button>
+                <button class="game-button" id="return-title-btn">Return to Title</button>
+                <button class="game-button" id="quit-btn">Quit</button>
+            </div>
+        </div>
+
+        <!-- ポーズ画面 -->
+        <div id="pause-overlay" class="overlay hidden">
+            <div class="pause-menu">
+                <button class="pause-button" id="resume-btn">Resume</button>
+                <button class="pause-button" id="pause-restart-btn">Restart Game</button>
+                <button class="pause-button" id="pause-new-game-btn">New Game</button>
+                <button class="pause-button" id="pause-return-btn">Return to Title</button>
+                <button class="pause-button" id="pause-quit-btn">Quit</button>
+            </div>
+        </div>
+
+        <!-- エラーダイアログ -->
+        <div id="error-overlay" class="overlay hidden">
+            <div class="error-dialog">
+                <p id="error-message"></p>
+                <button class="error-button" id="error-ok-btn">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>

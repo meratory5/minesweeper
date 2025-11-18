@@ -1,0 +1,282 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    overflow: hidden;
+    background-color: #ffffff;
+}
+
+#app {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+}
+
+.screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* スタート画面 */
+#start-screen h1 {
+    font-size: 48px;
+    margin-bottom: 100px;
+    color: #000000;
+}
+
+.menu-button {
+    width: 200px;
+    height: 50px;
+    margin: 15px 0;
+    font-size: 18px;
+    background-color: transparent;
+    border: 2px solid #6496ff;
+    color: #000000;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.menu-button:hover {
+    background-color: #e8f0ff;
+}
+
+/* 設定画面 */
+#config-screen h2 {
+    font-size: 32px;
+    margin-bottom: 40px;
+    color: #000000;
+}
+
+.config-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.preset-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.preset-row label {
+    font-size: 18px;
+    min-width: 100px;
+}
+
+.preset-button {
+    width: 120px;
+    height: 35px;
+    font-size: 16px;
+    font-weight: bold;
+    background-color: transparent;
+    border: 2px solid #00c800;
+    color: #000000;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.preset-button:hover {
+    background-color: #e8ffe8;
+}
+
+.preset-button.custom {
+    border-color: #c8c8c8;
+}
+
+.config-field {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.config-field label {
+    font-size: 18px;
+    min-width: 100px;
+}
+
+.config-input {
+    width: 120px;
+    height: 35px;
+    font-size: 16px;
+    padding: 5px 10px;
+    border: 2px solid #c8c8c8;
+    outline: none;
+}
+
+.config-input:focus {
+    border-color: #6496ff;
+}
+
+.config-buttons {
+    display: flex;
+    gap: 20px;
+    margin-top: 30px;
+    justify-content: center;
+}
+
+.config-button {
+    width: 100px;
+    height: 40px;
+    font-size: 16px;
+    background-color: transparent;
+    border: 2px solid #6496ff;
+    color: #000000;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.config-button:hover {
+    background-color: #e8f0ff;
+}
+
+/* ゲーム画面 */
+#game-screen {
+    position: relative;
+}
+
+#game-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+}
+
+#game-canvas:active {
+    cursor: grabbing;
+}
+
+#game-message {
+    position: absolute;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 48px;
+    font-weight: bold;
+    padding: 20px 40px;
+    background-color: white;
+    border: 2px solid #000000;
+    border-radius: 5px;
+    z-index: 10;
+}
+
+#game-message.victory {
+    color: #00c800;
+}
+
+#game-message.game-over {
+    color: #ff0000;
+}
+
+#game-over-menu {
+    position: absolute;
+    top: 180px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 11;
+}
+
+.game-button {
+    width: 180px;
+    height: 40px;
+    font-size: 16px;
+    background-color: rgba(255, 255, 255, 0.95);
+    border: 2px solid #6496ff;
+    color: #000000;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.game-button:hover {
+    background-color: #e8f0ff;
+}
+
+/* オーバーレイ */
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+/* ポーズメニュー */
+.pause-menu {
+    background-color: rgba(255, 255, 255, 0.95);
+    padding: 40px;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pause-button {
+    width: 200px;
+    height: 40px;
+    font-size: 16px;
+    background-color: transparent;
+    border: 2px solid #6496ff;
+    color: #000000;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.pause-button:hover {
+    background-color: #e8f0ff;
+}
+
+/* エラーダイアログ */
+.error-dialog {
+    width: 400px;
+    height: 200px;
+    background-color: white;
+    border: 3px solid #000000;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: 40px 20px 20px 20px;
+}
+
+#error-message {
+    font-size: 18px;
+    color: #ff0000;
+    text-align: center;
+    white-space: pre-line;
+}
+
+.error-button {
+    width: 80px;
+    height: 40px;
+    font-size: 16px;
+    background-color: transparent;
+    border: 2px solid #6496ff;
+    color: #000000;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.error-button:hover {
+    background-color: #e8f0ff;
+}
