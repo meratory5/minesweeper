@@ -1,6 +1,6 @@
 class Minesweeper {
     constructor() {
-        // プリセット
+        // Preset settings
         this.presets = {
             'easy': { rows: 9, cols: 9, mines: 10 },
             'normal': { rows: 16, cols: 16, mines: 40 },
@@ -10,7 +10,7 @@ class Minesweeper {
         this.presetOrder = ['easy', 'normal', 'hard', 'extreme'];
         this.currentPreset = 'easy';
         
-        // ゲーム設定
+        // Game settings
         const preset = this.presets[this.currentPreset];
         this.rows = preset.rows;
         this.cols = preset.cols;
@@ -20,7 +20,7 @@ class Minesweeper {
         this.offsetX = 0;
         this.offsetY = 0;
         
-        // ゲーム状態
+        // Game state
         this.firstClick = true;
         this.gameOver = false;
         this.board = null;
@@ -28,27 +28,28 @@ class Minesweeper {
         this.flags = null;
         this.gameMessage = "";
         
-        // ドラッグ関連
+        // Drag related
         this.dragging = false;
         this.dragStartPos = null;
         this.dragStartOffset = null;
         this.clickThreshold = 20;
         
-        // タッチ関連
+        // Touch related
         this.touchStartTime = 0;
         this.touchStartPos = null;
         this.longPressTimer = null;
         this.longPressTriggered = false;
-        this.longPressDuration = 500; // 500ms
-        this.pinchStartDistance = null; // この行を追加
-        this.pinchStartScale = null; // この行を追加
+        this.longPressDuration = 500;
+        this.pinchStartDistance = null;
+        this.pinchStartScale = null;
+        this.pinchCenter = null;
         
-        // 状態
+        // State
         this.state = "START";
         this.errorMessage = null;
         this.errorFromState = null;
         
-        // DOM要素
+        // DOM elements
         this.canvas = document.getElementById('game-canvas');
         this.ctx = this.canvas.getContext('2d');
         
@@ -56,22 +57,22 @@ class Minesweeper {
         this.setupEventListeners();
         this.resizeCanvas();
         
-        // 初期画面を表示
+        // Show initial screen
         this.showScreen('start-screen');
     }
     
     initDOM() {
-        // スタート画面
+        // Start screen
         document.getElementById('start-game-btn').onclick = () => this.startGame();
         document.getElementById('config-btn').onclick = () => this.showConfigScreen();
         document.getElementById('exit-btn').onclick = () => window.close();
         
-        // 設定画面
+        // Config screen
         document.getElementById('preset-btn').onclick = () => this.cyclePreset();
         document.getElementById('config-ok-btn').onclick = () => this.applyConfig();
         document.getElementById('config-cancel-btn').onclick = () => this.showScreen('start-screen');
         
-        // ゲームオーバーメニュー
+        // Game over menu
         document.getElementById('restart-btn').onclick = () => this.restartGame();
         document.getElementById('new-game-btn').onclick = () => this.startGame();
         document.getElementById('return-title-btn').onclick = () => {
@@ -81,7 +82,7 @@ class Minesweeper {
         };
         document.getElementById('quit-btn').onclick = () => window.close();
         
-        // ポーズメニュー
+        // Pause menu
         document.getElementById('resume-btn').onclick = () => this.resumeGame();
         document.getElementById('pause-restart-btn').onclick = () => {
             this.hidePauseMenu();
@@ -97,35 +98,35 @@ class Minesweeper {
         };
         document.getElementById('pause-quit-btn').onclick = () => window.close();
         
-        // エラーダイアログ
+        // Error dialog
         document.getElementById('error-ok-btn').onclick = () => this.hideError();
     }
     
     setupEventListeners() {
-        // リサイズ
+        // Resize
         window.addEventListener('resize', () => this.resizeCanvas());
         
-        // マウスイベント
+        // Mouse events
         this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
         this.canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
         this.canvas.addEventListener('mouseup', (e) => this.onMouseUp(e));
         this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
         this.canvas.addEventListener('wheel', (e) => this.onWheel(e));
-        this.canvas.addEventListener('dragstart', (e) => e.preventDefault()); // この行を追加
+        this.canvas.addEventListener('dragstart', (e) => e.preventDefault());
         
-        // タッチイベント
+        // Touch events
         this.canvas.addEventListener('touchstart', (e) => this.onTouchStart(e), { passive: false });
         this.canvas.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false });
         this.canvas.addEventListener('touchend', (e) => this.onTouchEnd(e), { passive: false });
         
-        // キーボードイベント
+        // Keyboard events
         document.addEventListener('keydown', (e) => {
             if (this.state === 'GAME' && !this.gameOver && e.key === 'Escape') {
                 this.showPauseMenu();
             }
         });
         
-        // 入力フィールドイベント
+        // Input field events
         ['rows', 'cols', 'mines'].forEach(field => {
             const input = document.getElementById(`${field}-input`);
             input.addEventListener('input', () => {
@@ -136,22 +137,17 @@ class Minesweeper {
     }
     
     resizeCanvas() {
-        const dpr = window.devicePixelRatio || 1;
-        
-        // CSSサイズ
+        // CSS size
         const displayWidth = window.innerWidth;
         const displayHeight = window.innerHeight;
         
-        // Canvas内部解像度（高DPI対応）
-        this.canvas.width = displayWidth * dpr;
-        this.canvas.height = displayHeight * dpr;
+        // Set canvas size same as CSS size (no DPI scaling)
+        this.canvas.width = displayWidth;
+        this.canvas.height = displayHeight;
         
-        // CSSでの表示サイズ
+        // CSS display size
         this.canvas.style.width = displayWidth + 'px';
         this.canvas.style.height = displayHeight + 'px';
-        
-        // 描画コンテキストをスケール（重要！）
-        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         
         if (this.state === 'GAME') {
             this.enforceViewLimits();
@@ -284,10 +280,14 @@ class Minesweeper {
     }
     
     resetViewToDefault() {
+        // Calculate ratio of board size to screen size
         const scaleX = this.canvas.width / (this.cols * this.cellSize);
         const scaleY = this.canvas.height / (this.rows * this.cellSize);
+        
+        // Use smaller ratio to fit on screen (0.9x for margin)
         this.scale = Math.min(scaleX, scaleY) * 0.9;
         
+        // Center the board
         const boardW = this.cols * this.cellSize * this.scale;
         const boardH = this.rows * this.cellSize * this.scale;
         this.offsetX = (this.canvas.width - boardW) / 2;
@@ -308,38 +308,53 @@ class Minesweeper {
         const centerX = this.canvas.width / 2;
         const centerY = this.canvas.height / 2;
         
+        // Prevent right edge from going left of center
         if (this.offsetX > centerX) this.offsetX = centerX;
+        // Prevent left edge from going right of center
         if (this.offsetX + boardW < centerX) this.offsetX = centerX - boardW;
+        // Prevent bottom edge from going above center
         if (this.offsetY > centerY) this.offsetY = centerY;
+        // Prevent top edge from going below center
         if (this.offsetY + boardH < centerY) this.offsetY = centerY - boardH;
+    }
+    
+    getCanvasCoordinates(clientX, clientY) {
+        const rect = this.canvas.getBoundingClientRect();
+        return {
+            x: clientX - rect.left,
+            y: clientY - rect.top
+        };
     }
     
     onMouseDown(e) {
         if (this.gameOver) return;
         
+        const coords = this.getCanvasCoordinates(e.clientX, e.clientY);
+        
         if (e.button === 0) {
-            this.dragStartPos = { x: e.clientX, y: e.clientY };
+            this.dragStartPos = coords;
             this.dragStartOffset = { x: this.offsetX, y: this.offsetY };
             this.dragging = false;
             
-            // マウス長押しタイマーを設定
+            // Set long press timer
             this.longPressTriggered = false;
             this.longPressTimer = setTimeout(() => {
                 if (!this.dragging && this.dragStartPos) {
                     this.longPressTriggered = true;
-                    this.rightClick(e.clientX, e.clientY);
+                    this.rightClick(coords.x, coords.y);
                 }
             }, this.longPressDuration);
         } else if (e.button === 2) {
-            this.rightClick(e.clientX, e.clientY);
+            this.rightClick(coords.x, coords.y);
         }
     }
     
     onMouseMove(e) {
         if (this.gameOver || !this.dragStartPos) return;
         
-        const dx = e.clientX - this.dragStartPos.x;
-        const dy = e.clientY - this.dragStartPos.y;
+        const coords = this.getCanvasCoordinates(e.clientX, e.clientY);
+        const dx = coords.x - this.dragStartPos.x;
+        const dy = coords.y - this.dragStartPos.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
         if (this.dragging) {
@@ -348,21 +363,20 @@ class Minesweeper {
             this.enforceViewLimits();
             this.drawGame();
         } else if (distance > this.clickThreshold) {
-            // ドラッグと判定したら長押しタイマーをキャンセル
+            // Cancel long press timer when drag is detected
             if (this.longPressTimer) {
                 clearTimeout(this.longPressTimer);
                 this.longPressTimer = null;
             }
             this.dragging = true;
             this.canvas.classList.add('dragging');
-            this.dragStartPos = { x: e.clientX, y: e.clientY };
         }
     }
     
     onMouseUp(e) {
         if (this.gameOver) return;
         
-        // 長押しタイマーをクリア
+        // Clear long press timer
         if (this.longPressTimer) {
             clearTimeout(this.longPressTimer);
             this.longPressTimer = null;
@@ -370,7 +384,8 @@ class Minesweeper {
         
         if (e.button === 0 && this.dragStartPos) {
             if (!this.dragging && !this.longPressTriggered) {
-                this.leftClick(e.clientX, e.clientY);
+                const coords = this.getCanvasCoordinates(e.clientX, e.clientY);
+                this.leftClick(coords.x, coords.y);
             }
             this.canvas.classList.remove('dragging');
             this.dragStartPos = null;
@@ -382,6 +397,8 @@ class Minesweeper {
     
     onWheel(e) {
         e.preventDefault();
+        
+        const coords = this.getCanvasCoordinates(e.clientX, e.clientY);
         
         if (e.ctrlKey) {
             this.offsetY += e.deltaY > 0 ? -10 : 10;
@@ -404,8 +421,8 @@ class Minesweeper {
             } else if (newScale > maxScale) {
                 this.scale = maxScale;
             } else {
-                const mx = e.clientX;
-                const my = e.clientY;
+                const mx = coords.x;
+                const my = coords.y;
                 this.offsetX = mx - (mx - this.offsetX) * factor;
                 this.offsetY = my - (my - this.offsetY) * factor;
                 this.scale = newScale;
@@ -422,14 +439,15 @@ class Minesweeper {
         
         if (e.touches.length === 1) {
             const touch = e.touches[0];
+            const coords = this.getCanvasCoordinates(touch.clientX, touch.clientY);
             this.touchStartTime = Date.now();
-            this.touchStartPos = { x: touch.clientX, y: touch.clientY };
-            this.dragStartPos = { x: touch.clientX, y: touch.clientY };
+            this.touchStartPos = coords;
+            this.dragStartPos = coords;
             this.dragStartOffset = { x: this.offsetX, y: this.offsetY };
             this.dragging = false;
             this.longPressTriggered = false;
             
-            // 長押しタイマーを設定
+            // Set long press timer
             this.longPressTimer = setTimeout(() => {
                 if (!this.dragging && this.touchStartPos) {
                     this.longPressTriggered = true;
@@ -440,7 +458,7 @@ class Minesweeper {
                 }
             }, this.longPressDuration);
         } else if (e.touches.length === 2) {
-            // 二本指タッチ: ピンチズーム開始
+            // Two finger touch: start pinch zoom
             if (this.longPressTimer) {
                 clearTimeout(this.longPressTimer);
                 this.longPressTimer = null;
@@ -450,10 +468,16 @@ class Minesweeper {
             
             const touch1 = e.touches[0];
             const touch2 = e.touches[1];
-            const dx = touch2.clientX - touch1.clientX;
-            const dy = touch2.clientY - touch1.clientY;
+            const coords1 = this.getCanvasCoordinates(touch1.clientX, touch1.clientY);
+            const coords2 = this.getCanvasCoordinates(touch2.clientX, touch2.clientY);
+            const dx = coords2.x - coords1.x;
+            const dy = coords2.y - coords1.y;
             this.pinchStartDistance = Math.sqrt(dx * dx + dy * dy);
             this.pinchStartScale = this.scale;
+            this.pinchCenter = {
+                x: (coords1.x + coords2.x) / 2,
+                y: (coords1.y + coords2.y) / 2
+            };
         }
     }
     
@@ -463,8 +487,9 @@ class Minesweeper {
         
         if (e.touches.length === 1 && this.touchStartPos) {
             const touch = e.touches[0];
-            const dx = touch.clientX - this.dragStartPos.x;
-            const dy = touch.clientY - this.dragStartPos.y;
+            const coords = this.getCanvasCoordinates(touch.clientX, touch.clientY);
+            const dx = coords.x - this.dragStartPos.x;
+            const dy = coords.y - this.dragStartPos.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             if (this.dragging) {
@@ -473,21 +498,22 @@ class Minesweeper {
                 this.enforceViewLimits();
                 this.drawGame();
             } else if (distance > this.clickThreshold) {
-                // ドラッグと判定したら長押しタイマーをキャンセル
+                // Cancel long press timer when drag is detected
                 if (this.longPressTimer) {
                     clearTimeout(this.longPressTimer);
                     this.longPressTimer = null;
                 }
                 this.dragging = true;
                 this.canvas.classList.add('dragging');
-                this.dragStartPos = { x: touch.clientX, y: touch.clientY };
             }
         } else if (e.touches.length === 2 && this.pinchStartDistance !== null) {
-            // 二本指タッチ: ピンチズーム
+            // Two finger touch: pinch zoom
             const touch1 = e.touches[0];
             const touch2 = e.touches[1];
-            const dx = touch2.clientX - touch1.clientX;
-            const dy = touch2.clientY - touch1.clientY;
+            const coords1 = this.getCanvasCoordinates(touch1.clientX, touch1.clientY);
+            const coords2 = this.getCanvasCoordinates(touch2.clientX, touch2.clientY);
+            const dx = coords2.x - coords1.x;
+            const dy = coords2.y - coords1.y;
             const currentDistance = Math.sqrt(dx * dx + dy * dy);
             
             const scaleFactor = currentDistance / this.pinchStartDistance;
@@ -502,13 +528,12 @@ class Minesweeper {
             const maxScale = Math.min(maxScaleX, maxScaleY);
             
             if (newScale >= minScale && newScale <= maxScale) {
-                // ピンチの中心点を計算
-                const centerX = (touch1.clientX + touch2.clientX) / 2;
-                const centerY = (touch1.clientY + touch2.clientY) / 2;
+                // Zoom based on pinch center (center point is fixed)
+                const centerX = this.pinchCenter.x;
+                const centerY = this.pinchCenter.y;
                 
-                // 中心点を基準にズーム
-                this.offsetX = centerX - (centerX - this.offsetX) * scaleFactor;
-                this.offsetY = centerY - (centerY - this.offsetY) * scaleFactor;
+                this.offsetX = centerX - (centerX - this.offsetX) * (newScale / this.scale);
+                this.offsetY = centerY - (centerY - this.offsetY) * (newScale / this.scale);
                 this.scale = newScale;
                 
                 this.enforceViewLimits();
@@ -521,16 +546,16 @@ class Minesweeper {
         e.preventDefault();
         if (this.gameOver) return;
         
-        // 長押しタイマーをクリア
+        // Clear long press timer
         if (this.longPressTimer) {
             clearTimeout(this.longPressTimer);
             this.longPressTimer = null;
         }
         
         if (e.touches.length === 0) {
-            // すべての指が離れた
+            // All fingers released
             if (this.touchStartPos && !this.dragging && !this.longPressTriggered) {
-                // 通常のタップ(左クリック相当)
+                // Normal tap (equivalent to left click)
                 this.leftClick(this.touchStartPos.x, this.touchStartPos.y);
             }
             
@@ -543,7 +568,7 @@ class Minesweeper {
             this.pinchStartDistance = null;
             this.pinchStartScale = null;
         } else if (e.touches.length === 1) {
-            // 二本指から一本指に戻った
+            // From two fingers to one finger
             this.pinchStartDistance = null;
             this.pinchStartScale = null;
         }
@@ -739,7 +764,7 @@ class Minesweeper {
     drawGame() {
         if (!this.board) return;
         
-        // 一度クリアしてから描画
+        // Clear and redraw
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.ctx.fillStyle = '#ffffff';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -751,7 +776,7 @@ class Minesweeper {
         const startRow = Math.max(0, Math.floor(-this.offsetY / scaleSize));
         const endRow = Math.min(this.rows, Math.floor((this.canvas.height - this.offsetY) / scaleSize) + 2);
         
-        // セルの塗りつぶし
+        // Fill cells
         for (let r = startRow; r < endRow; r++) {
             for (let c = startCol; c < endCol; c++) {
                 const x = this.offsetX + c * scaleSize;
@@ -762,7 +787,7 @@ class Minesweeper {
             }
         }
         
-        // グリッド線
+        // Grid lines
         this.ctx.strokeStyle = '#000000';
         this.ctx.lineWidth = 1;
         
@@ -786,7 +811,7 @@ class Minesweeper {
             this.ctx.stroke();
         }
         
-        // テキスト
+        // Text
         const fontSize = Math.max(16, Math.floor(24 * this.scale));
         this.ctx.font = `${fontSize}px Arial`;
         this.ctx.textAlign = 'center';
@@ -815,7 +840,7 @@ class Minesweeper {
             }
         }
         
-        // ゲームオーバーオーバーレイ
+        // Game over overlay
         if (this.gameOver) {
             this.ctx.fillStyle = 'rgba(255, 255, 255, 0.86)';
             this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -823,5 +848,5 @@ class Minesweeper {
     }
 }
 
-// ゲーム開始
+// Start game
 const game = new Minesweeper();

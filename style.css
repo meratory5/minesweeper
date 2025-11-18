@@ -29,7 +29,7 @@ body {
     display: none !important;
 }
 
-/* スタート画面 */
+/* Start screen */
 #start-screen h1 {
     font-size: 48px;
     margin-bottom: 100px;
@@ -52,7 +52,7 @@ body {
     background-color: #e8f0ff;
 }
 
-/* 設定画面 */
+/* Config screen */
 #config-screen h2 {
     font-size: 32px;
     margin-bottom: 40px;
@@ -142,7 +142,7 @@ body {
     background-color: #e8f0ff;
 }
 
-/* ゲーム画面 */
+/* Game screen */
 #game-screen {
     position: relative;
 }
@@ -163,7 +163,7 @@ body {
     user-drag: none;
     pointer-events: auto;
     -webkit-touch-callout: none;
-    touch-action: pinch-zoom pan-x pan-y; /* none から変更 */
+    touch-action: pinch-zoom pan-x pan-y;
 }
 
 #game-canvas.dragging {
@@ -218,7 +218,7 @@ body {
     background-color: #e8f0ff;
 }
 
-/* オーバーレイ */
+/* Overlay */
 .overlay {
     position: absolute;
     top: 0;
@@ -232,7 +232,7 @@ body {
     z-index: 100;
 }
 
-/* ポーズメニュー */
+/* Pause menu */
 .pause-menu {
     background-color: rgba(255, 255, 255, 0.95);
     padding: 40px;
@@ -257,7 +257,7 @@ body {
     background-color: #e8f0ff;
 }
 
-/* エラーダイアログ */
+/* Error dialog */
 .error-dialog {
     width: 400px;
     height: 200px;
