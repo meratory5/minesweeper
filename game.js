@@ -39,7 +39,7 @@ class Minesweeper {
         this.touchStartPos = null;
         this.longPressTimer = null;
         this.longPressTriggered = false;
-        this.longPressDuration = 500;
+        this.longPressDuration = 350;
         this.pinchStartDistance = null;
         this.pinchStartScale = null;
         this.pinchCenter = null;
