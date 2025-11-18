@@ -40,6 +40,8 @@ class Minesweeper {
         this.longPressTimer = null;
         this.longPressTriggered = false;
         this.longPressDuration = 500; // 500ms
+        this.pinchStartDistance = null; // この行を追加
+        this.pinchStartScale = null; // この行を追加
         
         // 状態
         this.state = "START";
@@ -134,8 +136,12 @@ class Minesweeper {
     }
     
     resizeCanvas() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
+        const dpr = window.devicePixelRatio || 1;
+        this.canvas.width = window.innerWidth * dpr;
+        this.canvas.height = window.innerHeight * dpr;
+        this.canvas.style.width = window.innerWidth + 'px';
+        this.canvas.style.height = window.innerHeight + 'px';
+        this.ctx.scale(dpr, dpr);
         
         if (this.state === 'GAME') {
             this.enforceViewLimits();
@@ -402,52 +408,102 @@ class Minesweeper {
     
     onTouchStart(e) {
         e.preventDefault();
-        if (this.gameOver || e.touches.length !== 1) return;
+        if (this.gameOver) return;
         
-        const touch = e.touches[0];
-        this.touchStartTime = Date.now();
-        this.touchStartPos = { x: touch.clientX, y: touch.clientY };
-        this.dragStartPos = { x: touch.clientX, y: touch.clientY };
-        this.dragStartOffset = { x: this.offsetX, y: this.offsetY };
-        this.dragging = false;
-        this.longPressTriggered = false;
-        
-        // 長押しタイマーを設定
-        this.longPressTimer = setTimeout(() => {
-            if (!this.dragging && this.touchStartPos) {
-                this.longPressTriggered = true;
-                this.rightClick(this.touchStartPos.x, this.touchStartPos.y);
-                // 軽い振動フィードバック(対応端末のみ)
-                if (navigator.vibrate) {
-                    navigator.vibrate(50);
+        if (e.touches.length === 1) {
+            const touch = e.touches[0];
+            this.touchStartTime = Date.now();
+            this.touchStartPos = { x: touch.clientX, y: touch.clientY };
+            this.dragStartPos = { x: touch.clientX, y: touch.clientY };
+            this.dragStartOffset = { x: this.offsetX, y: this.offsetY };
+            this.dragging = false;
+            this.longPressTriggered = false;
+            
+            // 長押しタイマーを設定
+            this.longPressTimer = setTimeout(() => {
+                if (!this.dragging && this.touchStartPos) {
+                    this.longPressTriggered = true;
+                    this.rightClick(this.touchStartPos.x, this.touchStartPos.y);
+                    if (navigator.vibrate) {
+                        navigator.vibrate(50);
+                    }
                 }
-            }
-        }, this.longPressDuration);
-    }
-    
-    onTouchMove(e) {
-        e.preventDefault();
-        if (this.gameOver || !this.touchStartPos || e.touches.length !== 1) return;
-        
-        const touch = e.touches[0];
-        const dx = touch.clientX - this.dragStartPos.x;
-        const dy = touch.clientY - this.dragStartPos.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (this.dragging) {
-            this.offsetX = this.dragStartOffset.x + dx;
-            this.offsetY = this.dragStartOffset.y + dy;
-            this.enforceViewLimits();
-            this.drawGame();
-        } else if (distance > this.clickThreshold) {
-            // ドラッグと判定したら長押しタイマーをキャンセル
+            }, this.longPressDuration);
+        } else if (e.touches.length === 2) {
+            // 二本指タッチ: ピンチズーム開始
             if (this.longPressTimer) {
                 clearTimeout(this.longPressTimer);
                 this.longPressTimer = null;
             }
-            this.dragging = true;
-            this.canvas.classList.add('dragging');
-            this.dragStartPos = { x: touch.clientX, y: touch.clientY };
+            this.dragging = false;
+            this.touchStartPos = null;
+            
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            const dx = touch2.clientX - touch1.clientX;
+            const dy = touch2.clientY - touch1.clientY;
+            this.pinchStartDistance = Math.sqrt(dx * dx + dy * dy);
+            this.pinchStartScale = this.scale;
+        }
+    }
+    
+    onTouchMove(e) {
+        e.preventDefault();
+        if (this.gameOver) return;
+        
+        if (e.touches.length === 1 && this.touchStartPos) {
+            const touch = e.touches[0];
+            const dx = touch.clientX - this.dragStartPos.x;
+            const dy = touch.clientY - this.dragStartPos.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (this.dragging) {
+                this.offsetX = this.dragStartOffset.x + dx;
+                this.offsetY = this.dragStartOffset.y + dy;
+                this.enforceViewLimits();
+                this.drawGame();
+            } else if (distance > this.clickThreshold) {
+                // ドラッグと判定したら長押しタイマーをキャンセル
+                if (this.longPressTimer) {
+                    clearTimeout(this.longPressTimer);
+                    this.longPressTimer = null;
+                }
+                this.dragging = true;
+                this.canvas.classList.add('dragging');
+                this.dragStartPos = { x: touch.clientX, y: touch.clientY };
+            }
+        } else if (e.touches.length === 2 && this.pinchStartDistance !== null) {
+            // 二本指タッチ: ピンチズーム
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            const dx = touch2.clientX - touch1.clientX;
+            const dy = touch2.clientY - touch1.clientY;
+            const currentDistance = Math.sqrt(dx * dx + dy * dy);
+            
+            const scaleFactor = currentDistance / this.pinchStartDistance;
+            const newScale = this.pinchStartScale * scaleFactor;
+            
+            const minScaleX = (this.canvas.width / 3) / (this.cols * this.cellSize);
+            const minScaleY = (this.canvas.height / 3) / (this.rows * this.cellSize);
+            const minScale = Math.min(minScaleX, minScaleY);
+            
+            const maxScaleX = (this.canvas.width / 3) / this.cellSize;
+            const maxScaleY = (this.canvas.height / 3) / this.cellSize;
+            const maxScale = Math.min(maxScaleX, maxScaleY);
+            
+            if (newScale >= minScale && newScale <= maxScale) {
+                // ピンチの中心点を計算
+                const centerX = (touch1.clientX + touch2.clientX) / 2;
+                const centerY = (touch1.clientY + touch2.clientY) / 2;
+                
+                // 中心点を基準にズーム
+                this.offsetX = centerX - (centerX - this.offsetX) * scaleFactor;
+                this.offsetY = centerY - (centerY - this.offsetY) * scaleFactor;
+                this.scale = newScale;
+                
+                this.enforceViewLimits();
+                this.drawGame();
+            }
         }
     }
     
@@ -461,17 +517,26 @@ class Minesweeper {
             this.longPressTimer = null;
         }
         
-        if (this.touchStartPos && !this.dragging && !this.longPressTriggered) {
-            // 通常のタップ(左クリック相当)
-            this.leftClick(this.touchStartPos.x, this.touchStartPos.y);
+        if (e.touches.length === 0) {
+            // すべての指が離れた
+            if (this.touchStartPos && !this.dragging && !this.longPressTriggered) {
+                // 通常のタップ(左クリック相当)
+                this.leftClick(this.touchStartPos.x, this.touchStartPos.y);
+            }
+            
+            this.canvas.classList.remove('dragging');
+            this.touchStartPos = null;
+            this.dragStartPos = null;
+            this.dragStartOffset = null;
+            this.dragging = false;
+            this.longPressTriggered = false;
+            this.pinchStartDistance = null;
+            this.pinchStartScale = null;
+        } else if (e.touches.length === 1) {
+            // 二本指から一本指に戻った
+            this.pinchStartDistance = null;
+            this.pinchStartScale = null;
         }
-        
-        this.canvas.classList.remove('dragging');
-        this.touchStartPos = null;
-        this.dragStartPos = null;
-        this.dragStartOffset = null;
-        this.dragging = false;
-        this.longPressTriggered = false;
     }
     
     leftClick(x, y) {

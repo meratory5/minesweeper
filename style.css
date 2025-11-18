@@ -160,10 +160,10 @@ body {
     -khtml-user-drag: none;
     -moz-user-drag: none;
     -o-user-drag: none;
-    /*user-drag: none;*/
+    user-drag: none;
     pointer-events: auto;
-    -webkit-touch-callout: none; /* iOSで長押しメニューを無効化 */
-    touch-action: none; /* タッチ操作のデフォルト動作を無効化 */
+    -webkit-touch-callout: none;
+    touch-action: pinch-zoom pan-x pan-y; /* none から変更 */
 }
 
 #game-canvas.dragging {
