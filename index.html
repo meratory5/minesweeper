@@ -2,79 +2,129 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minesweeper</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <title>Minesweeper 掃海図</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="app">
-        <!-- Start screen -->
-        <div id="start-screen" class="screen">
+    <header class="bar">
+        <div class="brand">
             <h1>Minesweeper</h1>
-            <button class="menu-button" id="start-game-btn">Start Game</button>
-            <button class="menu-button" id="config-btn">Config</button>
-            <button class="menu-button" id="exit-btn">Exit Game</button>
+            <button type="button" class="chart-label" id="open-settings" aria-haspopup="dialog" title="難易度と設定">
+                <span id="level-name">初級</span>
+                <span id="level-size">9×9</span>
+            </button>
         </div>
 
-        <!-- Config screen -->
-        <div id="config-screen" class="screen hidden">
-            <h2>Config Minesweeper</h2>
-            <div class="config-content">
-                <div class="preset-row">
-                    <label>Preset:</label>
-                    <button id="preset-btn" class="preset-button">EASY</button>
-                </div>
-                <div class="config-field">
-                    <label>Rows:</label>
-                    <input type="text" id="rows-input" class="config-input" value="9">
-                </div>
-                <div class="config-field">
-                    <label>Cols:</label>
-                    <input type="text" id="cols-input" class="config-input" value="9">
-                </div>
-                <div class="config-field">
-                    <label>Mines:</label>
-                    <input type="text" id="mines-input" class="config-input" value="10">
-                </div>
-                <div class="config-buttons">
-                    <button class="config-button" id="config-ok-btn">OK</button>
-                    <button class="config-button" id="config-cancel-btn">Cancel</button>
-                </div>
+        <div class="gauges">
+            <div class="gauge" title="残りの地雷（地雷の数 − 旗の数）">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3v15M6 3l9 3.4L6 10" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>
+                <span class="sr">残りの地雷</span>
+                <output id="mines-left">10</output>
+            </div>
+            <div class="gauge" title="経過時間">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="11" r="6.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 7.4V11l2.4 1.6M8 2.6h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                <span class="sr">経過時間</span>
+                <output id="timer">0:00</output>
             </div>
         </div>
 
-        <!-- Game screen -->
-        <div id="game-screen" class="screen hidden">
-            <canvas id="game-canvas"></canvas>
-            <div id="game-message" class="hidden"></div>
-            <div id="game-over-menu" class="hidden">
-                <button class="game-button" id="restart-btn">Restart Game</button>
-                <button class="game-button" id="new-game-btn">New Game</button>
-                <button class="game-button" id="return-title-btn">Return to Title</button>
-                <button class="game-button" id="quit-btn">Quit</button>
-            </div>
+        <div class="actions">
+            <button type="button" id="new-game" class="btn primary" title="新しい盤面 (N)">新しい盤面</button>
+            <button type="button" id="hint-toggle" class="btn toggle" aria-pressed="false" title="地雷の確率を表示 (P)">確率</button>
+            <button type="button" id="pause" class="btn icon" title="一時停止 (Esc)" aria-label="一時停止">
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4.5v11M13 4.5v11" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="sea" id="sea">
+        <canvas id="board" tabindex="0" aria-label="盤面。矢印キーで移動、スペースで開く、F で旗"></canvas>
+
+        <div class="pause-cover" id="pause-cover" hidden>
+            <p>一時停止中</p>
+            <button type="button" class="btn primary" id="resume">再開する</button>
         </div>
 
-        <!-- Pause screen -->
-        <div id="pause-overlay" class="overlay hidden">
-            <div class="pause-menu">
-                <button class="pause-button" id="resume-btn">Resume</button>
-                <button class="pause-button" id="pause-restart-btn">Restart Game</button>
-                <button class="pause-button" id="pause-new-game-btn">New Game</button>
-                <button class="pause-button" id="pause-return-btn">Return to Title</button>
-                <button class="pause-button" id="pause-quit-btn">Quit</button>
+        <section class="result" id="result" hidden aria-live="polite">
+            <div class="result-text">
+                <strong id="result-title"></strong>
+                <span id="result-detail"></span>
             </div>
-        </div>
-
-        <!-- Error dialog -->
-        <div id="error-overlay" class="overlay hidden">
-            <div class="error-dialog">
-                <p id="error-message"></p>
-                <button class="error-button" id="error-ok-btn">OK</button>
+            <div class="result-actions">
+                <button type="button" class="btn primary" id="result-new">新しい盤面</button>
+                <button type="button" class="btn" id="result-retry">同じ盤面をやり直す</button>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
 
+    <footer class="foot">
+        <p id="status" aria-live="polite"></p>
+        <div class="foot-actions">
+            <button type="button" id="fit-view" class="btn small" title="盤面全体を表示 (0)">全体表示</button>
+            <button type="button" id="flag-mode" class="btn small toggle" aria-pressed="false" title="タップで旗を立てるモード">旗モード</button>
+        </div>
+    </footer>
+
+    <dialog id="settings" aria-labelledby="settings-title">
+        <form method="dialog" id="settings-form" novalidate>
+            <h2 id="settings-title">盤面の設定</h2>
+
+            <fieldset class="levels">
+                <legend>難易度</legend>
+                <label><input type="radio" name="preset" value="easy"><span><b>初級</b><i>9×9、地雷 10</i></span></label>
+                <label><input type="radio" name="preset" value="normal"><span><b>中級</b><i>16×16、地雷 40</i></span></label>
+                <label><input type="radio" name="preset" value="hard"><span><b>上級</b><i>30×16、地雷 99</i></span></label>
+                <label><input type="radio" name="preset" value="extreme"><span><b>極限</b><i>50×50、地雷 500</i></span></label>
+                <label><input type="radio" name="preset" value="custom"><span><b>カスタム</b><i>自分で決める</i></span></label>
+            </fieldset>
+
+            <div class="custom" id="custom-fields">
+                <label>行<input type="number" id="rows-input" inputmode="numeric" min="4" max="100" value="9"></label>
+                <label>列<input type="number" id="cols-input" inputmode="numeric" min="4" max="100" value="9"></label>
+                <label>地雷<input type="number" id="mines-input" inputmode="numeric" min="1" value="10"></label>
+            </div>
+            <p class="error" id="settings-error" role="alert" hidden></p>
+
+            <label class="check">
+                <input type="checkbox" id="noguess-input" checked>
+                <span><b>推測なしで解ける盤面だけを出す</b><i>運任せの二択が出ない盤面を、解析で確かめてから配ります。</i></span>
+            </label>
+
+            <label class="row">表示
+                <select id="theme-input">
+                    <option value="auto">端末の設定に合わせる</option>
+                    <option value="light">昼の海図（ライト）</option>
+                    <option value="dark">夜の海図（ダーク）</option>
+                </select>
+            </label>
+
+            <div class="best">
+                <h3>ベストタイム</h3>
+                <dl id="best-list"></dl>
+            </div>
+
+            <details class="howto">
+                <summary>操作方法</summary>
+                <ul>
+                    <li>クリック / タップ：マスを開く。数字の上では、旗の数が合っていれば周りをまとめて開く</li>
+                    <li>右クリック / 長押し：旗を立てる・外す</li>
+                    <li>左右同時押し / 中クリック：周りをまとめて開く</li>
+                    <li>ドラッグで移動、ホイール / ピンチで拡大縮小（Ctrl / Shift + ホイールで縦横スクロール）</li>
+                    <li>キーボード：矢印で移動、スペースで開く、F で旗、P で確率、N で新しい盤面、R でやり直し、Esc で一時停止</li>
+                    <li>確率を表示したゲームと、やり直したゲームはベストタイムに記録されません</li>
+                </ul>
+            </details>
+
+            <div class="dialog-actions">
+                <button type="button" class="btn" id="settings-cancel">閉じる</button>
+                <button type="submit" class="btn primary" id="settings-ok">この設定で始める</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script src="engine.js"></script>
     <script src="game.js"></script>
 </body>
 </html>
