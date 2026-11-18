@@ -10,7 +10,7 @@
 <body>
     <header class="bar">
         <div class="brand">
-            <h1>Minesweeper</h1>
+            <h1><a href="" title="ページを読み込み直す">Minesweeper</a></h1>
             <button type="button" class="chart-label" id="open-settings" aria-haspopup="dialog" title="難易度と設定">
                 <span id="level-name">初級</span>
                 <span id="level-size">9×9</span>
@@ -73,10 +73,10 @@
 
             <fieldset class="levels">
                 <legend>難易度</legend>
-                <label><input type="radio" name="preset" value="easy"><span><b>初級</b><i>9×9、地雷 10</i></span></label>
-                <label><input type="radio" name="preset" value="normal"><span><b>中級</b><i>16×16、地雷 40</i></span></label>
-                <label><input type="radio" name="preset" value="hard"><span><b>上級</b><i>30×16、地雷 99</i></span></label>
-                <label><input type="radio" name="preset" value="extreme"><span><b>極限</b><i>50×50、地雷 500</i></span></label>
+                <label><input type="radio" name="preset" value="easy"><span><b>初級</b><i id="size-easy">9×9、地雷 10</i></span></label>
+                <label><input type="radio" name="preset" value="normal"><span><b>中級</b><i id="size-normal">16×16、地雷 40</i></span></label>
+                <label><input type="radio" name="preset" value="hard"><span><b>上級</b><i id="size-hard">30×16、地雷 99</i></span></label>
+                <label><input type="radio" name="preset" value="extreme"><span><b>極限</b><i id="size-extreme">50×50、地雷 500</i></span></label>
                 <label><input type="radio" name="preset" value="custom"><span><b>カスタム</b><i>自分で決める</i></span></label>
             </fieldset>
 
@@ -113,13 +113,25 @@
                     <li>左右同時押し / 中クリック：周りをまとめて開く</li>
                     <li>ドラッグで移動、ホイール / ピンチで拡大縮小（Ctrl / Shift + ホイールで縦横スクロール）</li>
                     <li>キーボード：矢印で移動、スペースで開く、F で旗、P で確率、N で新しい盤面、R でやり直し、Esc で一時停止</li>
-                    <li>確率を表示したゲームと、やり直したゲームはベストタイムに記録されません</li>
+                    <li>確率を表示したゲームと、やり直したゲームはベストタイムに記録されません。確率表示はゲームごとに最初の一回だけ確認があります</li>
+                    <li>上級は、縦長の画面で新しい盤面を作ると 16×30（縦長）になります。ベストタイムは 30×16 と共通です</li>
                 </ul>
             </details>
 
             <div class="dialog-actions">
                 <button type="button" class="btn" id="settings-cancel">閉じる</button>
                 <button type="submit" class="btn primary" id="settings-ok">この設定で始める</button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog id="confirm" class="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+        <form method="dialog">
+            <h2 id="confirm-title"></h2>
+            <p id="confirm-text"></p>
+            <div class="dialog-actions">
+                <button type="submit" value="cancel" class="btn" id="confirm-cancel">キャンセル</button>
+                <button type="submit" value="ok" class="btn primary" id="confirm-ok">OK</button>
             </div>
         </form>
     </dialog>

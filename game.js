@@ -12,7 +12,8 @@
     const PRESETS = {
         easy: { name: '初級', rows: 9, cols: 9, mines: 10 },
         normal: { name: '中級', rows: 16, cols: 16, mines: 40 },
-        hard: { name: '上級', rows: 16, cols: 30, mines: 99 },
+        // tall: on a portrait viewport a new board is dealt 16 wide × 30 tall instead (see presetDims)
+        hard: { name: '上級', rows: 16, cols: 30, mines: 99, tall: true },
         extreme: { name: '極限', rows: 50, cols: 50, mines: 500 }
     };
     const REVEAL_MS = 200;
@@ -35,7 +36,7 @@
         { preset: 'easy', rows: 9, cols: 9, mines: 10, noGuess: true, theme: 'auto' },
         store.get('ms2.settings', {})
     );
-    if (PRESETS[cfg.preset]) Object.assign(cfg, pick(PRESETS[cfg.preset]));
+    if (PRESETS[cfg.preset]) Object.assign(cfg, presetDims(cfg.preset));
     if (!validConfig(cfg.rows, cfg.cols, cfg.mines)) Object.assign(cfg, { preset: 'easy' }, pick(PRESETS.easy));
 
     let game = null;
@@ -43,6 +44,8 @@
     let flagTime = null;           // per cell: time a flag was planted
     let probs = null;              // Float64Array from analysis, or null
     let hintOn = false, hintUsed = false, retried = false, guaranteed = false;
+    let hintWarned = false;        // the player accepted the probability warning in this game
+    let leaveGuard = false;        // beforeunload warning currently registered
     let busy = false, paused = false, flagMode = false;
     let generator = null;
     let boomTime = 0, winTime = 0, animUntil = 0, frameQueued = false;
@@ -56,11 +59,25 @@
     let probRamp = [];
 
     function pick(p) { return { rows: p.rows, cols: p.cols, mines: p.mines }; }
+    function isPortrait() { return window.innerHeight > window.innerWidth; }
+    /** Size a preset is dealt at right now: a wide preset is turned on its side on a portrait viewport. */
+    function presetDims(id) {
+        const p = PRESETS[id];
+        return p.tall && isPortrait() ? { rows: p.cols, cols: p.rows, mines: p.mines } : pick(p);
+    }
+    /** Both orientations of a turnable preset share one record, stored under the landscape key. */
+    function baseKey(rows, cols, mines) {
+        for (const id of Object.keys(PRESETS)) {
+            const p = PRESETS[id];
+            if (p.tall && rows === p.cols && cols === p.rows && mines === p.mines) return `${p.rows}x${p.cols}x${mines}`;
+        }
+        return `${rows}x${cols}x${mines}`;
+    }
     function validConfig(r, c, m) {
         return Number.isInteger(r) && Number.isInteger(c) && Number.isInteger(m) &&
             r >= 4 && r <= 100 && c >= 4 && c <= 100 && m >= 1 && m <= r * c - 9;
     }
-    function bestKey() { return `${cfg.rows}x${cfg.cols}x${cfg.mines}${cfg.noGuess ? '-ng' : ''}`; }
+    function bestKey() { return baseKey(cfg.rows, cfg.cols, cfg.mines) + (cfg.noGuess ? '-ng' : ''); }
     function fmtTime(ms, tenths) {
         const t = Math.max(0, ms);
         const m = Math.floor(t / 60000), s = Math.floor(t / 1000) % 60;
@@ -412,13 +429,35 @@
         $('level-size').textContent = `${cfg.cols}×${cfg.rows}、地雷 ${cfg.mines}`;
     }
 
+    /** A game that would be lost by discarding the board: started and not finished. */
+    function inProgress() { return !!game && game.ready && !game.over && game.opened > 0; }
+
+    function onBeforeUnload(e) { e.preventDefault(); e.returnValue = ''; }
+    /** The browser's "leave site?" prompt is registered only while a game is in progress. */
+    function syncLeaveGuard() {
+        const want = inProgress();
+        if (want === leaveGuard) return;
+        leaveGuard = want;
+        if (want) window.addEventListener('beforeunload', onBeforeUnload);
+        else window.removeEventListener('beforeunload', onBeforeUnload);
+    }
+
+    /** Each game starts with the probability display off, so using it is always a deliberate choice. */
+    function resetHint() {
+        clearTimeout(hintTimer);
+        hintOn = false; hintUsed = false; hintWarned = false; probs = null;
+        $('hint-toggle').setAttribute('aria-pressed', 'false');
+    }
+
     function newGame() {
         generator = null; busy = false;
         canvas.classList.remove('busy');
+        // the size is decided here and only here: a board in play never changes shape
+        if (PRESETS[cfg.preset]) Object.assign(cfg, presetDims(cfg.preset));
         game = new E.Game(cfg.rows, cfg.cols, cfg.mines);
         animStart = new Float64Array(game.n);
         flagTime = new Float64Array(game.n);
-        probs = null; hintUsed = hintOn; retried = false; guaranteed = false;
+        resetHint(); retried = false; guaranteed = false;
         boomTime = 0; winTime = 0;
         cursor = Math.floor(cfg.rows / 2) * cfg.cols + Math.floor(cfg.cols / 2);
         resetTimer();
@@ -430,20 +469,45 @@
         setStatus(cfg.noGuess
             ? '好きなマスを開いて始めます。最初の一手は必ず安全で、推測なしで解ける盤面を用意します。'
             : '好きなマスを開いて始めます。最初の一手は必ず安全です。');
+        syncLeaveGuard();
         requestDraw();
+    }
+
+    const DISCARD_NEW = {
+        title: '進行中のゲームを破棄しますか？',
+        text: 'このゲームはまだ途中です。新しい盤面を始めると、いまの盤面と経過時間は失われます。',
+        ok: '新しい盤面を始める', cancel: 'ゲームに戻る'
+    };
+    const DISCARD_RETRY = {
+        title: '最初からやり直しますか？',
+        text: '同じ盤面を最初からやり直します。ここまでの進行と経過時間は失われ、この回はベストタイムに記録されません。',
+        ok: 'やり直す', cancel: 'ゲームに戻る'
+    };
+
+    /** Every path that throws a board away comes through here; a game in progress asks first. */
+    function requestNewGame(beforeStart) {
+        const go = () => { if (beforeStart) beforeStart(); newGame(); };
+        if (!inProgress()) { go(); return; }
+        ask(DISCARD_NEW).then((ok) => { if (ok) go(); });
+    }
+    function requestRetry() {
+        if (!game || !game.ready || busy) return;
+        if (!inProgress()) { retryGame(); return; }
+        ask(DISCARD_RETRY).then((ok) => { if (ok) retryGame(); });
     }
 
     function retryGame() {
         if (!game || !game.ready || busy) return;
         game.reset();
         animStart.fill(0); flagTime.fill(0);
-        probs = null; hintUsed = hintOn; retried = true;
+        resetHint(); retried = true;
         boomTime = 0; winTime = 0;
         resetTimer();
         setPaused(false);
         $('result').hidden = true;
         updateHud();
         setStatus('同じ盤面をもう一度。この回はベストタイムに記録されません。');
+        syncLeaveGuard();
         requestDraw();
     }
 
@@ -514,6 +578,7 @@
         }
         if (game.over) finish(now);
         else if (hintOn) scheduleHint();
+        syncLeaveGuard();
         updateHud();
         requestDraw();
     }
@@ -605,6 +670,56 @@
         if (on) computeHint();
         else { probs = null; if (game && !game.over) setStatus('確率表示を消しました。'); requestDraw(); }
     }
+
+    /** Turning the display on asks once per game; after the player agrees, later toggles are silent. */
+    function toggleHint() {
+        if (hintOn) { setHint(false); return; }
+        if (!game || game.over || hintWarned) { setHint(true); return; }
+        ask({
+            title: '確率表示を使いますか？',
+            text: retried
+                ? '各マスの地雷の確率を表示する補助機能です。この回はやり直しのため、もともとベストタイムには記録されません。'
+                : '各マスの地雷の確率を表示する補助機能です。確率を表示したゲームは、クリアしてもベストタイムに記録されません。あとで表示を消しても、このゲームは記録の対象に戻りません。',
+            ok: '表示する', cancel: 'やめておく'
+        }).then((ok) => {
+            if (!ok) return;
+            hintWarned = true;
+            setHint(true);
+        });
+    }
+
+    // ---------------------------------------------------------------- confirm
+
+    const confirmDlg = $('confirm');
+    let confirmDone = null;
+
+    /**
+     * Modal yes / no question in the middle of the screen. Resolves true only when the
+     * confirm button is used; Esc, the cancel button and a click outside all mean no.
+     * A running game is paused while the question is up, so reading it costs no time.
+     */
+    function ask(q) {
+        if (confirmDone) return Promise.resolve(false);
+        if (!confirmDlg.showModal) return Promise.resolve(window.confirm(q.title + '\n\n' + q.text));
+        $('confirm-title').textContent = q.title;
+        $('confirm-text').textContent = q.text;
+        $('confirm-ok').textContent = q.ok;
+        $('confirm-cancel').textContent = q.cancel;
+        const resume = inProgress() && !paused;
+        if (resume) setPaused(true);
+        confirmDlg.returnValue = '';
+        confirmDlg.showModal();
+        $('confirm-cancel').focus();
+        return new Promise((resolve) => {
+            confirmDone = () => {
+                confirmDone = null;
+                if (resume && paused) { setPaused(false); canvas.focus({ preventScroll: true }); }
+                resolve(confirmDlg.returnValue === 'ok');
+            };
+        });
+    }
+    confirmDlg.addEventListener('close', () => { if (confirmDone) confirmDone(); });
+    confirmDlg.addEventListener('click', (e) => { if (e.target === confirmDlg) confirmDlg.close(''); });
 
     // ------------------------------------------------------------------ pause
 
@@ -766,15 +881,15 @@
     // --------------------------------------------------------------- keyboard
 
     document.addEventListener('keydown', (e) => {
-        if ($('settings').open) return;
+        if ($('settings').open || confirmDlg.open) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         const tag = e.target && e.target.tagName;
         const onButton = tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' || tag === 'SUMMARY';
         const k = e.key;
         if (k === 'Escape') { if (paused) setPaused(false); else setPaused(true); e.preventDefault(); return; }
-        if (k === 'n' || k === 'N') { newGame(); e.preventDefault(); return; }
-        if (k === 'r' || k === 'R') { retryGame(); e.preventDefault(); return; }
-        if (k === 'p' || k === 'P') { setHint(!hintOn); e.preventDefault(); return; }
+        if (k === 'n' || k === 'N') { requestNewGame(); e.preventDefault(); return; }
+        if (k === 'r' || k === 'R') { requestRetry(); e.preventDefault(); return; }
+        if (k === 'p' || k === 'P') { toggleHint(); e.preventDefault(); return; }
         if (k === '0') { fitView(true); requestDraw(); e.preventDefault(); return; }
         if (k === '+' || k === ';') { zoomAt(view.w / 2, view.h / 2, 1.25); return; }
         if (k === '-') { zoomAt(view.w / 2, view.h / 2, 0.8); return; }
@@ -804,6 +919,18 @@
 
     function renderBest() {
         const best = store.get('ms2.best', {});
+        // a record made on a custom board that was really a turned preset joins the preset's record
+        let merged = false;
+        for (const key of Object.keys(best)) {
+            const m = /^(\d+)x(\d+)x(\d+)(-ng)?$/.exec(key);
+            if (!m) continue;
+            const canon = baseKey(+m[1], +m[2], +m[3]) + (m[4] || '');
+            if (canon === key) continue;
+            if (!(canon in best) || best[key] < best[canon]) best[canon] = best[key];
+            delete best[key];
+            merged = true;
+        }
+        if (merged) store.set('ms2.best', best);
         const dl = $('best-list');
         dl.textContent = '';
         let any = false;
@@ -838,14 +965,26 @@
         const preset = form.elements.preset.value;
         const p = PRESETS[preset];
         if (p) {
-            $('rows-input').value = p.rows; $('cols-input').value = p.cols; $('mines-input').value = p.mines;
+            const d = presetDims(preset);
+            $('rows-input').value = d.rows; $('cols-input').value = d.cols; $('mines-input').value = d.mines;
         }
         $('custom-fields').hidden = !!p;
         $('settings-error').hidden = true;
     }
 
+    /** The preset list shows the size a new board would get on this viewport. */
+    function syncPresetLabels() {
+        for (const id of Object.keys(PRESETS)) {
+            const el = $('size-' + id);
+            if (!el) continue;
+            const d = presetDims(id);
+            el.textContent = `${d.cols}×${d.rows}、地雷 ${d.mines}`;
+        }
+    }
+
     function openSettings() {
         if (game && game.ready && !game.over) setPaused(true);
+        syncPresetLabels();
         form.elements.preset.value = cfg.preset;
         $('rows-input').value = cfg.rows; $('cols-input').value = cfg.cols; $('mines-input').value = cfg.mines;
         $('noguess-input').checked = cfg.noGuess;
@@ -875,10 +1014,13 @@
         else if (rows < 4 || rows > 100 || cols < 4 || cols > 100) msg = '行と列は 4 から 100 の間で指定してください。';
         else if (mines < 1 || mines > rows * cols - 9) msg = `この大きさでは、地雷は 1 から ${rows * cols - 9} の間で指定してください。`;
         if (msg) { err.textContent = msg; err.hidden = false; return; }
-        Object.assign(cfg, { preset, rows, cols, mines, noGuess: $('noguess-input').checked, theme: $('theme-input').value });
-        store.set('ms2.settings', cfg);
-        closeSettings();
-        newGame();
+        const next = { preset, rows, cols, mines, noGuess: $('noguess-input').checked, theme: $('theme-input').value };
+        // on "no" the settings stay open and the game stays as it was
+        requestNewGame(() => {
+            Object.assign(cfg, next);
+            store.set('ms2.settings', cfg);
+            closeSettings();
+        });
     });
     $('settings-cancel').addEventListener('click', closeSettings);
     dialog.addEventListener('click', (e) => { if (e.target === dialog) closeSettings(); });
@@ -886,10 +1028,10 @@
     // ---------------------------------------------------------------- buttons
 
     $('open-settings').addEventListener('click', openSettings);
-    $('new-game').addEventListener('click', newGame);
-    $('result-new').addEventListener('click', newGame);
-    $('result-retry').addEventListener('click', retryGame);
-    $('hint-toggle').addEventListener('click', () => setHint(!hintOn));
+    $('new-game').addEventListener('click', () => requestNewGame());
+    $('result-new').addEventListener('click', () => requestNewGame());
+    $('result-retry').addEventListener('click', requestRetry);
+    $('hint-toggle').addEventListener('click', toggleHint);
     $('pause').addEventListener('click', () => setPaused(!paused));
     $('resume').addEventListener('click', () => { setPaused(false); canvas.focus({ preventScroll: true }); });
     $('fit-view').addEventListener('click', () => { fitView(true); requestDraw(); });
@@ -900,7 +1042,10 @@
     });
 
     document.addEventListener('visibilitychange', () => { if (document.hidden && game && game.ready && !game.over) setPaused(true); });
-    window.addEventListener('resize', resize);
+    window.addEventListener('resize', () => {
+        resize();
+        if (dialog.open) { syncPresetLabels(); if (PRESETS[form.elements.preset.value]) syncCustomFields(); }
+    });
     if (window.ResizeObserver) new ResizeObserver(resize).observe($('sea'));
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
@@ -911,5 +1056,8 @@
     newGame();
 
     // handle for debugging / automated checks
-    window.__ms = { get game() { return game; }, cfg, view, openCell, flagCell, newGame, setHint, cellAt };
+    window.__ms = {
+        get game() { return game; }, get hintOn() { return hintOn; }, get leaveGuard() { return leaveGuard; },
+        cfg, view, openCell, flagCell, newGame, setHint, cellAt, inProgress
+    };
 })();
